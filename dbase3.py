@@ -347,7 +347,7 @@ class DBase(object):
     
     def to_csv(self, path_or_fd, encoding='utf-8'):
         import csv
-        if isinstance(path_or_fd, file):
+        if isinstance(path_or_fd, io.IOBase):
             fd = path_or_fd
         else:
             fd = open(path_or_fd, 'w')
@@ -356,26 +356,25 @@ class DBase(object):
         for record in self:
             writer.writerow([('%s' % field).encode(encoding) for field in record._values])
     
-    def to_sql(self, of, encoding='utf-8'):
-        import codecs
-        f = codecs.open(of, mode='w', encoding=encoding)
+    def to_sql(self, of, table_name, encoding='utf-8'):
+        f = open(of, mode='wt', encoding=encoding)
         # init
         f.write('BEGIN;')
         f.write('\n\n')
         # create table
-        table_name = os.path.splitext(self.meta['file_name'])[0].lower()
+        #table_name = os.path.splitext(self.meta['file_name'])[0].lower()
         f.write('CREATE TABLE %s (' % table_name)
         f.write('\n\t''id INTEGER PRIMARY KEY')
         for name, dbase_type, length in [(x['name'],x['type'],x['length']) for x in self.meta['fields']]:
-            name = name.lower()
+            name = name.decode(self.encoding).lower()
             # convert dbase_type to sql_type
-            if dbase_type == 'N':
+            if dbase_type == b'N':
                 sql_type = 'DECIMAL(%d, %d)' % (length*2, length)
-            elif dbase_type == 'C':
+            elif dbase_type == b'C':
                 sql_type = 'TEXT'
-            elif dbase_type == 'D':
+            elif dbase_type == b'D':
                 sql_type = 'DATE'
-            elif dbase_type == 'L':
+            elif dbase_type == b'L':
                 sql_type = 'BOOLEAN'
             else:
                 sql_type = 'NUMERIC'
@@ -401,8 +400,8 @@ class DBase(object):
             f.write('%d' % record._pk)
             for value, dbase_type in zip(values, [x['type'] for x in self.meta['fields']]):
                 f.write(',')
-                if dbase_type == 'C':
-                    f.write('"%s"' % str(value).replace('"', r'""'))
+                if dbase_type in (b'C',b'D'):
+                    f.write("'%s'" % str(value))#.replace('"', r'""'))
                 else:
                     f.write(value)
             f.write(');\n')
